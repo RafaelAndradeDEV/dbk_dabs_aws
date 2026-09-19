@@ -16,6 +16,9 @@ The marts answer one business question: *where should the next marketing dollar 
 | How much can we spend to acquire a customer? | `gold_customer_ltv`: historical and predictive CLV, CAC, LTV:CAC |
 | Which channels deserve budget? | `gold_channel_marketing_performance`: revenue, CAC, ROI, LTV:CAC and CTR per channel |
 
+![Channel ROI & CAC dashboard](images/Channel_ROI_CAC_DASH.png)
+<p align="center"><em>The <code>prod</code> dashboard: revenue, blended CAC, LTV:CAC and ROI per acquisition channel.</em></p>
+
 ### Highlights
 
 - **One data product, two orchestrations.** The same medallion is built as a **Lakeflow Declarative Pipeline** and as a **Lakeflow Job** (notebook-task DAG), so you can compare the two side by side.
@@ -101,6 +104,9 @@ flowchart LR
 | Silver (`slv_*`) | `slv_order_facts` rolls line items up to order grain. `slv_customer_orders` keeps completed orders and adds acquisition attributes |
 | Gold (`gold_*`) | RFM quintile scoring and segments, historical and predictive CLV, CAC, channel ROI |
 
+![Lakeflow Declarative Pipeline run](images/pipeline.png)
+<p align="center"><em>A completed <code>prod</code> run: S3 sources through bronze, silver and gold, with row counts and expectations per table.</em></p>
+
 ### `marketing_rfm_ltv_job` — Lakeflow Job
 
 | Resource | Details |
@@ -114,6 +120,12 @@ flowchart LR
 |----------|---------|
 | AI/BI dashboard | Two pages: **Channel ROI & CAC** and **RFM segmentation**. Queries run with each viewer's own credentials (`embed_credentials: false`) |
 | Genie space | Natural-language Q&A over both marts, with sample questions, instructions and example SQL. Deployed to `dev` and `prod` only (see [CI/CD](#cicd)) |
+
+![RFM segmentation dashboard](images/RFM_segmentation_DASH.png)
+<p align="center"><em>The RFM segmentation page: customers and revenue per segment, and segment mix by acquisition channel.</em></p>
+
+![Genie space](images/genie.png)
+<p align="center"><em>The Genie space over both gold marts, with its sample questions.</em></p>
 
 Deploying the dashboard bundle requires the **direct** deployment engine (`bundle.engine: direct`), because `genie_spaces` is only supported there.
 
@@ -147,7 +159,8 @@ databricks_aws_dabs/
 │   ├── ci/                               #   CI helpers (bundle listing, serving-table bootstrap)
 │   └── helpers/                          #   Bundle discovery
 ├── tests/                                # pytest: RFM segment ladder + DLT/Job parity (no Spark needed)
-├── feature-docs/                         # Case design notes and DLT modeling rules
+├── feature-docs/                         # Case design notes (business case, data model, methodology)
+├── images/                               # README screenshots
 ├── typings/                              # Type stubs for dlt and Databricks notebook builtins
 ├── .github/workflows/ci.yml              # The whole CI/CD pipeline
 ├── .github/actions/databricks-ci-setup/  # Shared setup: uv, pinned Databricks CLI, target-branch fetch
@@ -168,6 +181,9 @@ Every bundle includes `../shared/*.yml`, so catalogs, schemas, groups and the CI
 ### 2. Deterministic sample data
 
 [`generate_marketing_data.py`](bundles/marketing_rfm_ltv_dlt/src/_setup/generate_marketing_data.py) produces `customers`, `orders`, `order_items` and `marketing_campaigns` from a fixed `--seed` and `--as-of` date. Every target therefore lands **identical** parquet under `<marketing_source_path>/<target>/marketing/`, and test results can be reproduced. S3 credentials come from the `aws_scope_s3` secret scope.
+
+![S3 landing zone](images/folders_aws_raw.png)
+<p align="center"><em>The <code>prod</code> landing zone in S3: one folder per source table.</em></p>
 
 ### 3. Business assumptions as parameters
 
@@ -290,7 +306,7 @@ Typical flow: branch from `dev`, change a bundle, open a PR to `dev`, and let CI
 ## Data Quality and Security
 
 - **Expectations on keys.** Models drop rows with null keys (`ON VIOLATION DROP ROW` / `@dp.expect_or_drop`). `slv_customer_orders` fails the update on a missing customer (`@dp.expect_or_fail`), and `net_revenue >= 0` is tracked as a warning-only metric.
-- **Strict medallion contract.** Bronze only casts, renames and dedups. Joins happen in silver, business logic in gold ([feature-docs/mcp_rule_dlt.md](feature-docs/mcp_rule_dlt.md)).
+- **Strict medallion contract.** Bronze only casts, renames and dedups. Joins happen in silver, business logic in gold.
 - **UC-governed serving.** The dashboard runs queries with the viewer's own credentials, so Unity Catalog grants apply to every chart.
 - **Group-based permissions.** Bundles grant `CAN_MANAGE` / `CAN_VIEW` / `CAN_RUN` to groups and the CI service principal, never to individuals (except your own `dev` deployment).
 - **No secrets in git.** S3 keys live in a Databricks secret scope, CI credentials in GitHub secrets, and local settings in a git-ignored `.env`.
@@ -321,11 +337,9 @@ Things to know before you run it:
 | Document | Contents |
 |----------|----------|
 | [feature-docs/marketing_rfm_ltv.md](feature-docs/marketing_rfm_ltv.md) | Business case, data model, RFM and CLV methodology |
-| [feature-docs/mcp_rule_dlt.md](feature-docs/mcp_rule_dlt.md) | DLT modeling rules: layers, naming, expectations, clustering |
 | [bundles/marketing_rfm_ltv_dashboard/README.md](bundles/marketing_rfm_ltv_dashboard/README.md) | Dashboard and Genie space: deploy, per-target resolution, UI editing |
 | [scripts/README.md](scripts/README.md) | Diff-aware deploy / run / destroy / validate scripts |
 | [scripts/ci/README.md](scripts/ci/README.md) | CI step wrappers and helpers |
-| [README_DIAGRAM.md](README_DIAGRAM.md) | Walkthrough outline of the case |
 
 ---
 
