@@ -1,0 +1,21 @@
+---
+variables:
+  # ──────────────────────────────────────────────
+  # Bronze source (parquet landing zone in S3)
+  # ──────────────────────────────────────────────
+  marketing_source_path:
+    description: >-
+      S3 base path (external location) where the raw marketing parquet files
+      land. Files are organized as <base>/<env>/marketing/<table>/.
+    default: s3://project-dbk-coredev-bucket
+
+  # ──────────────────────────────────────────────
+  # CLV business assumptions (tunable per environment)
+  # ──────────────────────────────────────────────
+  clv_gross_margin:
+    description: Assumed gross margin applied to predictive CLV (0-1).
+    default: "0.30"
+
+  clv_expected_lifespan_years:
+    description: Assumed average customer relationship length in years.
+    default: "3"

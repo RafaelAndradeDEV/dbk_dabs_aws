@@ -1,0 +1,20 @@
+## Common variables for etl pipelines
+variables:
+  # ──────────────────────────────────────────────
+  # Schemas (used in pipelines for materialization)
+  # ──────────────────────────────────────────────
+  target_catalog:
+    description: Target catalog where database objects (tables, views) will be created.
+
+  raw_schema:
+    description: Helper variable to assign either dev_schema_name or raw_schema_name based on the target environment.
+    default: raw
+
+  stg_schema:
+    description: Schema used for bronze (staging) tables (pipeline configuration).
+
+  int_schema:
+    description: Schema used for silver (intermediate) tables (pipeline configuration).
+
+  mart_schema:
+    description: Schema used for gold (mart) tables (pipeline configuration).

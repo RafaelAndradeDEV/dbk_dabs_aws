@@ -1,0 +1,70 @@
+## Common variables for bundles with resource dependencies
+variables:
+
+  # ──────────────────────────────────────────────
+  # Permissions & Groups
+  # ──────────────────────────────────────────────
+  viewer_group_name:
+    description: Default Databricks viewer group for the development environment.
+    default: project-sandbox-users
+
+  manager_group_name:
+    description: Default Databricks manager group for the production environment.
+    default: project-sandbox-admins
+
+  # ──────────────────────────────────────────────
+  # Catalogs
+  # ──────────────────────────────────────────────
+  dev_catalog_name:
+    description: Catalog name for the development environment.
+    default: project_dev_db
+
+  qa_catalog_name:
+    description: Catalog name for the QA environment.
+    default: project_qa_db
+
+  prod_catalog_name:
+    description: Catalog name for the production environment.
+    default: project_prod_db
+
+  # ──────────────────────────────────────────────
+  # Ingestion variables
+  # ──────────────────────────────────────────────
+  raw_schema_name:
+    description: Schema used for raw ingestion tables (pipeline configuration).
+    default: raw
+
+  # ──────────────────────────────────────────────
+  # Transformation variables
+  # ──────────────────────────────────────────────
+  stg_schema_name:
+    description: Default schema name for the staging layer.
+    default: staging
+
+  int_schema_name:
+    description: Default schema name for the intermediate layer.
+    default: intermediate
+
+  mart_schema_name:
+    description: Default schema name for the mart layer.
+    default: mart
+
+  # ──────────────────────────────────────────────
+  # Development Sandbox
+  # ──────────────────────────────────────────────
+  dev_schema_name:
+    description: Developer sandbox schema (isolated per user). Eg. dev_john_doe
+
+  # ──────────────────────────────────────────────
+  # Bundle Configuration
+  # ──────────────────────────────────────────────
+  root_path:
+    description: Workspace root path where the bundle will be deployed.
+    default: /Workspace/${bundle.target}_bundles/.bundle/${bundle.name}
+
+  # ──────────────────────────────────────────────
+  # CI/CD Service Principal
+  # ──────────────────────────────────────────────
+  sp_client_id:
+    description: Service principal client ID used for CI/CD authentication.
+    default: 8a617060-1f18-4717-bf7b-b8f3344dd5a0

@@ -1,0 +1,939 @@
+{
+  "datasets": [
+    {
+      "name": "ds_channel",
+      "displayName": "Channel marketing performance",
+      "queryLines": [
+        "SELECT\n",
+        "  acquisition_channel,\n",
+        "  customers,\n",
+        "  total_orders,\n",
+        "  total_revenue,\n",
+        "  avg_predictive_clv,\n",
+        "  total_campaign_cost,\n",
+        "  cac,\n",
+        "  marketing_roi,\n",
+        "  ltv_to_cac_ratio,\n",
+        "  impressions,\n",
+        "  clicks,\n",
+        "  click_through_rate\n",
+        "FROM gold_channel_marketing_performance"
+      ]
+    },
+    {
+      "name": "ds_rfm",
+      "displayName": "Customer RFM",
+      "queryLines": [
+        "SELECT\n",
+        "  customer_id,\n",
+        "  acquisition_channel,\n",
+        "  recency_days,\n",
+        "  frequency,\n",
+        "  monetary,\n",
+        "  r_score,\n",
+        "  f_score,\n",
+        "  m_score,\n",
+        "  rfm_segment\n",
+        "FROM gold_customer_rfm"
+      ]
+    },
+    {
+      "name": "ds_champions",
+      "displayName": "Champions count",
+      "queryLines": [
+        "SELECT\n",
+        "  COUNT(*) AS champions\n",
+        "FROM gold_customer_rfm\n",
+        "WHERE rfm_segment = 'Champions'"
+      ]
+    },
+    {
+      "name": "ds_at_risk_lost",
+      "displayName": "At risk / lost count",
+      "queryLines": [
+        "SELECT\n",
+        "  COUNT(*) AS at_risk_lost\n",
+        "FROM gold_customer_rfm\n",
+        "WHERE rfm_segment IN ('At Risk', 'Lost', 'Cannot Lose Them')"
+      ]
+    }
+  ],
+  "pages": [
+    {
+      "name": "page_channel",
+      "displayName": "Channel ROI & CAC",
+      "layout": [
+        {
+          "widget": {
+            "name": "w_total_revenue",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_channel",
+                  "fields": [
+                    {
+                      "name": "sum_total_revenue",
+                      "expression": "SUM(`total_revenue`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "sum_total_revenue",
+                  "displayName": "Total revenue",
+                  "format": {
+                    "type": "number-currency",
+                    "currencyCode": "USD",
+                    "decimalPlaces": {
+                      "type": "exact",
+                      "places": 0
+                    }
+                  }
+                }
+              },
+              "frame": {
+                "title": "Total revenue",
+                "showTitle": true
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 2,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "w_blended_cac",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_channel",
+                  "fields": [
+                    {
+                      "name": "blended_cac",
+                      "expression": "SUM(`total_campaign_cost`) / NULLIF(SUM(`customers`), 0)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "blended_cac",
+                  "displayName": "Blended CAC",
+                  "format": {
+                    "type": "number-currency",
+                    "currencyCode": "USD",
+                    "decimalPlaces": {
+                      "type": "exact",
+                      "places": 2
+                    }
+                  }
+                }
+              },
+              "frame": {
+                "title": "Blended CAC",
+                "showTitle": true
+              }
+            }
+          },
+          "position": {
+            "x": 2,
+            "y": 0,
+            "width": 2,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "w_avg_ltv_cac",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_channel",
+                  "fields": [
+                    {
+                      "name": "avg_ltv_cac",
+                      "expression": "AVG(`ltv_to_cac_ratio`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "avg_ltv_cac",
+                  "displayName": "Avg LTV:CAC (healthy > 3)",
+                  "format": {
+                    "type": "number-plain",
+                    "decimalPlaces": {
+                      "type": "exact",
+                      "places": 2
+                    }
+                  }
+                }
+              },
+              "frame": {
+                "title": "Avg LTV:CAC (healthy > 3)",
+                "showTitle": true
+              }
+            }
+          },
+          "position": {
+            "x": 4,
+            "y": 0,
+            "width": 2,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "w_roi_by_channel",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_channel",
+                  "fields": [
+                    {
+                      "name": "acquisition_channel",
+                      "expression": "`acquisition_channel`"
+                    },
+                    {
+                      "name": "sum_marketing_roi",
+                      "expression": "SUM(`marketing_roi`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "acquisition_channel",
+                  "scale": {
+                    "type": "categorical",
+                    "sort": {
+                      "by": "y"
+                    }
+                  },
+                  "displayName": "Channel"
+                },
+                "y": {
+                  "fieldName": "sum_marketing_roi",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "Marketing ROI"
+                }
+              },
+              "frame": {
+                "title": "Marketing ROI by channel",
+                "showTitle": true
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 3,
+            "width": 3,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "w_cac_by_channel",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_channel",
+                  "fields": [
+                    {
+                      "name": "acquisition_channel",
+                      "expression": "`acquisition_channel`"
+                    },
+                    {
+                      "name": "sum_cac",
+                      "expression": "SUM(`cac`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "acquisition_channel",
+                  "scale": {
+                    "type": "categorical"
+                  },
+                  "displayName": "Channel"
+                },
+                "y": {
+                  "fieldName": "sum_cac",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "CAC (USD)"
+                }
+              },
+              "frame": {
+                "title": "Customer acquisition cost by channel",
+                "showTitle": true
+              }
+            }
+          },
+          "position": {
+            "x": 3,
+            "y": 3,
+            "width": 3,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "w_ltvcac_by_channel",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_channel",
+                  "fields": [
+                    {
+                      "name": "acquisition_channel",
+                      "expression": "`acquisition_channel`"
+                    },
+                    {
+                      "name": "sum_ltv_to_cac_ratio",
+                      "expression": "SUM(`ltv_to_cac_ratio`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "acquisition_channel",
+                  "scale": {
+                    "type": "categorical"
+                  },
+                  "displayName": "Channel"
+                },
+                "y": {
+                  "fieldName": "sum_ltv_to_cac_ratio",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "LTV:CAC"
+                }
+              },
+              "frame": {
+                "title": "LTV:CAC ratio by channel",
+                "showTitle": true
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 9,
+            "width": 3,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "w_customers_by_channel",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_channel",
+                  "fields": [
+                    {
+                      "name": "acquisition_channel",
+                      "expression": "`acquisition_channel`"
+                    },
+                    {
+                      "name": "sum_customers",
+                      "expression": "SUM(`customers`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "acquisition_channel",
+                  "scale": {
+                    "type": "categorical"
+                  },
+                  "displayName": "Channel"
+                },
+                "y": {
+                  "fieldName": "sum_customers",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "Customers"
+                }
+              },
+              "frame": {
+                "title": "Customers acquired by channel",
+                "showTitle": true
+              }
+            }
+          },
+          "position": {
+            "x": 3,
+            "y": 9,
+            "width": 3,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "w_ctr_by_channel",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_channel",
+                  "fields": [
+                    {
+                      "name": "acquisition_channel",
+                      "expression": "`acquisition_channel`"
+                    },
+                    {
+                      "name": "sum_click_through_rate",
+                      "expression": "SUM(`click_through_rate`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "acquisition_channel",
+                  "scale": {
+                    "type": "categorical"
+                  },
+                  "displayName": "Channel"
+                },
+                "y": {
+                  "fieldName": "sum_click_through_rate",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "Click-through rate"
+                }
+              },
+              "frame": {
+                "title": "Click-through rate by channel",
+                "showTitle": true
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 15,
+            "width": 6,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "w_channel_scorecard",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_channel",
+                  "fields": [
+                    {
+                      "name": "acquisition_channel",
+                      "expression": "`acquisition_channel`"
+                    },
+                    {
+                      "name": "customers",
+                      "expression": "`customers`"
+                    },
+                    {
+                      "name": "total_revenue",
+                      "expression": "`total_revenue`"
+                    },
+                    {
+                      "name": "total_campaign_cost",
+                      "expression": "`total_campaign_cost`"
+                    },
+                    {
+                      "name": "cac",
+                      "expression": "`cac`"
+                    },
+                    {
+                      "name": "marketing_roi",
+                      "expression": "`marketing_roi`"
+                    },
+                    {
+                      "name": "ltv_to_cac_ratio",
+                      "expression": "`ltv_to_cac_ratio`"
+                    },
+                    {
+                      "name": "click_through_rate",
+                      "expression": "`click_through_rate`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 1,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "acquisition_channel",
+                    "displayName": "Channel"
+                  },
+                  {
+                    "fieldName": "customers",
+                    "displayName": "Customers"
+                  },
+                  {
+                    "fieldName": "total_revenue",
+                    "displayName": "Revenue"
+                  },
+                  {
+                    "fieldName": "total_campaign_cost",
+                    "displayName": "Campaign cost"
+                  },
+                  {
+                    "fieldName": "cac",
+                    "displayName": "CAC"
+                  },
+                  {
+                    "fieldName": "marketing_roi",
+                    "displayName": "Marketing ROI"
+                  },
+                  {
+                    "fieldName": "ltv_to_cac_ratio",
+                    "displayName": "LTV:CAC"
+                  },
+                  {
+                    "fieldName": "click_through_rate",
+                    "displayName": "CTR"
+                  }
+                ]
+              },
+              "frame": {
+                "title": "Channel scorecard",
+                "showTitle": true
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 21,
+            "width": 6,
+            "height": 8
+          }
+        }
+      ]
+    },
+    {
+      "name": "page_rfm",
+      "displayName": "RFM segmentation",
+      "layout": [
+        {
+          "widget": {
+            "name": "w_total_customers",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_rfm",
+                  "fields": [
+                    {
+                      "name": "count_customers",
+                      "expression": "COUNT(`customer_id`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "count_customers",
+                  "displayName": "Total customers"
+                }
+              },
+              "frame": {
+                "title": "Total customers",
+                "showTitle": true
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 2,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "w_champions",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_champions",
+                  "fields": [
+                    {
+                      "name": "champions",
+                      "expression": "SUM(`champions`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "champions",
+                  "displayName": "Champions"
+                }
+              },
+              "frame": {
+                "title": "Champions",
+                "showTitle": true
+              }
+            }
+          },
+          "position": {
+            "x": 2,
+            "y": 0,
+            "width": 2,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "w_at_risk_lost",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_at_risk_lost",
+                  "fields": [
+                    {
+                      "name": "at_risk_lost",
+                      "expression": "SUM(`at_risk_lost`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "at_risk_lost",
+                  "displayName": "At Risk / Lost"
+                }
+              },
+              "frame": {
+                "title": "At Risk / Lost",
+                "showTitle": true
+              }
+            }
+          },
+          "position": {
+            "x": 4,
+            "y": 0,
+            "width": 2,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "w_customers_by_segment",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_rfm",
+                  "fields": [
+                    {
+                      "name": "rfm_segment",
+                      "expression": "`rfm_segment`"
+                    },
+                    {
+                      "name": "count_customers",
+                      "expression": "COUNT(`customer_id`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "count_customers",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "Customers"
+                },
+                "y": {
+                  "fieldName": "rfm_segment",
+                  "scale": {
+                    "type": "categorical"
+                  },
+                  "displayName": "RFM segment"
+                }
+              },
+              "frame": {
+                "title": "Customers by RFM segment",
+                "showTitle": true
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 3,
+            "width": 3,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "w_revenue_by_segment",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_rfm",
+                  "fields": [
+                    {
+                      "name": "rfm_segment",
+                      "expression": "`rfm_segment`"
+                    },
+                    {
+                      "name": "sum_monetary",
+                      "expression": "SUM(`monetary`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "sum_monetary",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "Revenue (USD)"
+                },
+                "y": {
+                  "fieldName": "rfm_segment",
+                  "scale": {
+                    "type": "categorical"
+                  },
+                  "displayName": "RFM segment"
+                }
+              },
+              "frame": {
+                "title": "Revenue by RFM segment",
+                "showTitle": true
+              }
+            }
+          },
+          "position": {
+            "x": 3,
+            "y": 3,
+            "width": 3,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "w_segment_distribution",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_rfm",
+                  "fields": [
+                    {
+                      "name": "rfm_segment",
+                      "expression": "`rfm_segment`"
+                    },
+                    {
+                      "name": "count_customers",
+                      "expression": "COUNT(`customer_id`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "count_customers",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "Customers"
+                },
+                "y": {
+                  "fieldName": "rfm_segment",
+                  "scale": {
+                    "type": "categorical",
+                    "sort": {
+                      "by": "x-reversed"
+                    }
+                  },
+                  "displayName": "RFM segment"
+                }
+              },
+              "frame": {
+                "title": "Segment distribution",
+                "showTitle": true
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 9,
+            "width": 3,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "w_segment_by_channel",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_rfm",
+                  "fields": [
+                    {
+                      "name": "rfm_segment",
+                      "expression": "`rfm_segment`"
+                    },
+                    {
+                      "name": "acquisition_channel",
+                      "expression": "`acquisition_channel`"
+                    },
+                    {
+                      "name": "count_customers",
+                      "expression": "COUNT(`customer_id`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "rfm_segment",
+                  "scale": {
+                    "type": "categorical"
+                  },
+                  "displayName": "RFM segment"
+                },
+                "y": {
+                  "fieldName": "count_customers",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "Customers"
+                },
+                "color": {
+                  "fieldName": "acquisition_channel",
+                  "scale": {
+                    "type": "categorical"
+                  },
+                  "displayName": "Channel"
+                }
+              },
+              "frame": {
+                "title": "Segment mix by acquisition channel",
+                "showTitle": true
+              }
+            }
+          },
+          "position": {
+            "x": 3,
+            "y": 9,
+            "width": 3,
+            "height": 6
+          }
+        }
+      ]
+    }
+  ]
+}
