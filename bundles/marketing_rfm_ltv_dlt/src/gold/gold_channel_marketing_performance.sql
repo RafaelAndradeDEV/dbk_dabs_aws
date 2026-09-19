@@ -5,32 +5,33 @@
 -- revenue, CAC, marketing ROI, LTV:CAC and click-through rate per channel.
 
 create or refresh materialized view ${catalog_name}.${gold_schema_name}.gold_channel_marketing_performance (
-    acquisition_channel string comment "Marketing acquisition channel."
-    , customers bigint not null comment "Customers acquired through the channel."
-    , total_orders bigint comment "Lifetime orders from channel customers."
-    , total_revenue decimal(18, 2) comment "Lifetime net revenue from channel customers."
-    , avg_predictive_clv decimal(18, 2) comment "Average modeled CLV per channel customer."
-    , total_campaign_cost decimal(18, 2) comment "Total campaign spend on the channel."
-    , cac decimal(18, 2) comment "Customer acquisition cost (cost / customers)."
-    , marketing_roi double comment "(Revenue - cost) / cost."
-    , ltv_to_cac_ratio double comment "Avg predictive CLV / CAC."
-    , impressions bigint comment "Total impressions delivered."
-    , clicks bigint comment "Total clicks generated."
-    , click_through_rate double comment "Clicks / impressions."
+    acquisition_channel string comment 'Marketing acquisition channel.'
+    , customers bigint not null comment 'Customers acquired through the channel.'
+    , total_orders bigint comment 'Lifetime orders from channel customers.'
+    , total_revenue decimal(18, 2) comment 'Lifetime net revenue from channel customers.'
+    , avg_predictive_clv decimal(18, 2) comment 'Average modeled CLV per channel customer.'
+    , total_campaign_cost decimal(18, 2) comment 'Total campaign spend on the channel.'
+    , cac decimal(18, 2) comment 'Customer acquisition cost (cost / customers).'
+    , marketing_roi double comment '(Revenue - cost) / cost.'
+    , ltv_to_cac_ratio double comment 'Avg predictive CLV / CAC.'
+    , impressions bigint comment 'Total impressions delivered.'
+    , clicks bigint comment 'Total clicks generated.'
+    , click_through_rate double comment 'Clicks / impressions.'
     , constraint valid_channel expect (acquisition_channel is not null) on violation drop row
 )
-comment "Gold: marketing scorecard per acquisition channel."
+comment 'Gold: marketing scorecard per acquisition channel.'
 cluster by (acquisition_channel)
 as
-with campaign_agg as (
-    select
-        channel
-        , sum(cost) as total_cost
-        , sum(impressions) as impressions
-        , sum(clicks) as clicks
-    from ${catalog_name}.${bronze_schema_name}.stg_marketing_campaigns
-    group by channel
-)
+with
+    campaign_agg as (
+        select
+            channel
+            , sum(cost) as total_cost
+            , sum(impressions) as impressions
+            , sum(clicks) as clicks
+        from ${catalog_name}.${bronze_schema_name}.stg_marketing_campaigns
+        group by channel
+    )
 
 select
     ltv.acquisition_channel
@@ -41,9 +42,11 @@ select
     , cast(coalesce(c.total_cost, 0) as decimal(18, 2)) as total_campaign_cost
     , cast(coalesce(c.total_cost, 0) / nullif(count(distinct ltv.customer_id), 0) as decimal(18, 2)) as cac
     , round(cast((sum(ltv.historical_clv) - coalesce(c.total_cost, 0)) / nullif(c.total_cost, 0) as double), 2) as marketing_roi
-    , round(cast(
-        avg(ltv.predictive_clv)
-        / nullif(coalesce(c.total_cost, 0) / nullif(count(distinct ltv.customer_id), 0), 0) as double), 2
+    , round(
+        cast(
+            avg(ltv.predictive_clv)
+            / nullif(coalesce(c.total_cost, 0) / nullif(count(distinct ltv.customer_id), 0), 0) as double
+        ), 2
     ) as ltv_to_cac_ratio
     , c.impressions
     , c.clicks
