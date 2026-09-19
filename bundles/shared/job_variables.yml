@@ -1,0 +1,14 @@
+variables:
+  # ──────────────────────────────────────────────
+  # Pause Status (Job control)
+  # ──────────────────────────────────────────────
+  pause_status:
+    description: Generic pause status applied to a job/pipeline when created.
+
+  dev_pause_status:
+    description: Default pause status for jobs/pipelines in development.
+    default: PAUSED
+
+  prod_pause_status:
+    description: Default pause status for jobs/pipelines in production.
+    default: UNPAUSED

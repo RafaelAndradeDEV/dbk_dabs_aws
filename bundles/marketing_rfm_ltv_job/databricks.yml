@@ -1,0 +1,21 @@
+---
+bundle:
+  name: marketing_rfm_ltv_job
+
+include:
+  - resources/*.yml
+  - targets.yml
+  - variables.yml
+  - ../shared/common_variables.yml
+  - ../shared/job_variables.yml
+  - ../shared/transformation_variables.yml
+
+sync:
+  paths:
+    - ./src
+    # Sample-data generator lives in the DLT bundle; synced here for the seed task.
+    - ../marketing_rfm_ltv_dlt/src/_setup
+
+permissions:
+  - group_name: ${var.manager_group_name}
+    level: CAN_MANAGE

@@ -1,0 +1,22 @@
+---
+variables:
+  # ──────────────────────────────────────────────
+  # SQL warehouse backing the dashboard and Genie space.
+  # Defaults to the workspace's shared warehouse; override per target in
+  # targets.yml, with `--var dashboard_warehouse_id=<id>`, or BUNDLE_VAR_dashboard_warehouse_id.
+  # ──────────────────────────────────────────────
+  dashboard_warehouse_id:
+    description: SQL warehouse ID used to run the AI/BI dashboard and Genie space.
+    default: b4578277be3230af
+
+  # ──────────────────────────────────────────────
+  # Where the gold marts live (assigned per target in targets.yml).
+  # Declared locally — only catalog + mart schema are needed for serving,
+  # so we avoid pulling in the staging/intermediate vars from
+  # ../shared/transformation_variables.yml.
+  # ──────────────────────────────────────────────
+  target_catalog:
+    description: Catalog holding the gold marts consumed by the dashboard/Genie space.
+
+  mart_schema:
+    description: Schema (gold/mart layer) holding the marketing marts.

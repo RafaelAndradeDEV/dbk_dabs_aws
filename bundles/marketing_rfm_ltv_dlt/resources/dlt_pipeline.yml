@@ -1,0 +1,45 @@
+---
+resources:
+  pipelines:
+    marketing_rfm_ltv_pipeline:
+      name: ${bundle.target}_marketing_rfm_ltv_pipeline
+
+      tags:
+        env: ${bundle.target}
+        project: dbk_project
+        vendor: Rafael_Projects
+        domain: marketing
+
+      serverless: true
+      libraries:
+        - file:
+            path: ../src/bronze/*.py
+        - file:
+            path: ../src/bronze/*.sql
+        - file:
+            path: ../src/silver/*.py
+        - file:
+            path: ../src/silver/*.sql
+        - file:
+            path: ../src/gold/*.py
+        - file:
+            path: ../src/gold/*.sql
+
+      configuration:
+        catalog_name: ${var.target_catalog}
+        bronze_schema_name: ${var.stg_schema}
+        silver_schema_name: ${var.int_schema}
+        gold_schema_name: ${var.mart_schema}
+        # Bronze landing zone (S3 parquet, batch read - no streaming)
+        marketing_source_path: ${var.marketing_source_path}
+        env_target: ${bundle.target}
+        # CLV business assumptions
+        clv_gross_margin: ${var.clv_gross_margin}
+        clv_expected_lifespan_years: ${var.clv_expected_lifespan_years}
+        bundle.sourcePath: "${workspace.file_path}/src"
+        pipelines.clusterShutdown.delay: 1200s
+
+      channel: "current"
+
+      catalog: ${var.target_catalog}
+      schema: ${var.mart_schema}

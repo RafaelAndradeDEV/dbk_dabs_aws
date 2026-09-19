@@ -1,0 +1,22 @@
+---
+variables:
+  # Bronze landing zone (S3 parquet) - mirrors the DLT bundle.
+  marketing_source_path:
+    description: S3 base path where raw marketing parquet lands (<base>/<env>/marketing/<table>/).
+    default: s3://project-dbk-coredev-bucket
+
+  # Suffix appended to every output table name. Empty by default; set to `_job`
+  # in dev so the job's tables coexist with the DLT pipeline's materialized
+  # views in the shared per-user schema.
+  table_suffix:
+    description: Suffix appended to all job output table names (e.g. `_job`).
+    default: ""
+
+  # CLV business assumptions (kept identical to the DLT implementation).
+  clv_gross_margin:
+    description: Assumed gross margin applied to predictive CLV (0-1).
+    default: "0.30"
+
+  clv_expected_lifespan_years:
+    description: Assumed average customer relationship length in years.
+    default: "3"

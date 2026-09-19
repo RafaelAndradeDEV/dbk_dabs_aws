@@ -322,7 +322,7 @@ aliasing = explicit
 alias_case_check = dialect
 
 [sqlfluff:rules:aliasing.length] #AL06;L066
-min_alias_length = 3
+min_alias_length = None
 max_alias_length = None
 
 [sqlfluff:rules:aliasing.forbid] #AL06;L031
@@ -357,7 +357,7 @@ match_source = False
 
 [sqlfluff:rules:convention.quoted_literals] #CV10;L064
 # Consistent usage of preferred quotes for quoted literals
-preferred_quoted_literal_style = consistent
+preferred_quoted_literal_style = single_quotes
 # Disabled for dialects that do not support single and double quotes for quoted literals (e.g. Postgres)
 force_enable = False
 
@@ -372,7 +372,8 @@ force_enable = False
 
 [sqlfluff:rules:references.qualification] #RF02;L027
 # Comma separated list of words to ignore for this rule
-ignore_words = None
+# Pipeline parameters (${...}) are parsed as unqualified column references
+ignore_words = clv_expected_lifespan_years,clv_gross_margin
 ignore_words_regex = None
 
 [sqlfluff:rules:references.consistent] #RF03;L028

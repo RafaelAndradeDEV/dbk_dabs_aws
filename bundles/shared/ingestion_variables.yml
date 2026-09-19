@@ -1,0 +1,10 @@
+## Common variables for etl pipelines
+variables:
+  # ──────────────────────────────────────────────
+  # Schema for raw ingestion tables
+  # ──────────────────────────────────────────────
+  catalog:
+    description: Target catalog where database objects (tables, views) will be created.
+
+  raw_schema:
+    description: Helper variable to assign either dev_schema_name or raw_schema_name based on the target environment.

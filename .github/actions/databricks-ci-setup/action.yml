@@ -1,0 +1,29 @@
+name: Databricks CI Setup
+description: >
+  Shared setup for jobs that interact with Databricks: uv, pinned Databricks
+  CLI, dependency install, and target-branch fetch. Caller is expected to have
+  already checked out the repo at the desired ref (typically the PR head).
+
+inputs:
+  target-branch:
+    description: Target branch to fetch for diff comparisons
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - uses: astral-sh/setup-uv@v7
+      with:
+        enable-cache: true
+    - uses: databricks/setup-cli@v1.4.0
+    - name: Install dependencies
+      shell: bash
+      run: uv sync --locked --dev
+    - name: Fetch target branch
+      shell: bash
+      env:
+        TARGET_BRANCH: ${{ inputs.target-branch }}
+      run: |
+        fetch_branch="${TARGET_BRANCH%%~*}"
+        git fetch origin "${fetch_branch}:${fetch_branch}" --depth=2 \
+          || git fetch origin "${fetch_branch}" --depth=2
