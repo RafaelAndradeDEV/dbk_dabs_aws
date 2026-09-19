@@ -202,8 +202,13 @@ trap 'rm -rf "$TMP"; git checkout -q "$ORIGINAL_BRANCH"' EXIT
 
 # Identify bundles in each branch without checkout
 echo "▶ Identifying bundles in branches..."
-source_bundles_str=$(git ls-tree -r --name-only "$CURRENT_BRANCH" -- bundles/ | grep '/databricks.yml$' | sed 's|^bundles/||; s|/databricks.yml$||' | sort)
-target_bundles_str=$(git ls-tree -r --name-only "$TARGET_BRANCH" -- bundles/ | grep '/databricks.yml$' | sed 's|^bundles/||; s|/databricks.yml$||' | sort)
+# `|| true`: a branch with no bundles yet (e.g. a fresh dev) makes grep exit 1 under pipefail
+list_branch_bundles() {
+  git ls-tree -r --name-only "$1" -- bundles/ | { grep '/databricks.yml$' || true; } \
+    | sed 's|^bundles/||; s|/databricks.yml$||' | sort
+}
+source_bundles_str=$(list_branch_bundles "$CURRENT_BRANCH")
+target_bundles_str=$(list_branch_bundles "$TARGET_BRANCH")
 
 declare -A source_bundles=() target_bundles=() all_bundles=()
 for b in $source_bundles_str; do source_bundles["$b"]=1; all_bundles["$b"]=1; done
