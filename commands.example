@@ -1,0 +1,22 @@
+databricks bundle validate --target dev
+databricks bundle plan --target dev
+databricks bundle deploy --target dev
+databricks bundle run --target dev
+
+databricks secrets put-secret --json '{
+  "scope": "aws_scope_s3",
+  "key": "ACCESS_KEY_ID",
+  "string_value": ""
+}'
+
+databricks secrets put-secret --json '{
+  "scope": "aws_scope_s3",
+  "key": "SECRET_ACCESS_KEY",
+  "string_value": ""
+}'
+
+databricks secrets put-secret --json '{
+  "scope": "aws_scope_s3",
+  "key": "S3_PATH",
+  "string_value": "s3://project_dbk/"
+}'
