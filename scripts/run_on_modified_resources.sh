@@ -148,6 +148,9 @@ trap restore_hooks EXIT
 # --- Generate Action Plan ---
 echo "▶ Analyzing differences to generate action plan..."
 declare -A ACTION_PLAN
+# Jobs tagged `ci_seed_task: <task_key>` land the source data pipelines read. A dry run
+# (validate-only) resolves source paths, so that single task runs first.
+declare -a SEED_COMMANDS=()
 RESOURCES_FOUND=false
 profile="${DATABRICKS_PROFILE:-DEFAULT}"
 
@@ -196,6 +199,13 @@ for bundle_name in "${MODIFIED_BUNDLE_NAMES[@]}"; do
   # by scanning common files under the bundle path.
   resources_list=$(printf '%s' "$clean_json" | jq -r '.resources | (.pipelines // {} | keys_unsorted[] as $name | "pipelines:" + $name), (.jobs // {} | keys_unsorted[] as $name | "jobs:" + $name)')
 
+  if [[ "$DATABRICKS_COMMAND" == "run --validate-only" ]]; then
+    while IFS=$'\t' read -r seed_job seed_task; do
+      [[ -z "$seed_job" ]] && continue
+      SEED_COMMANDS+=("(cd '$ROOT_DIR/$bundle_root_path' && databricks bundle run -t '${DATABRICKS_BUNDLE_TARGET:-dev}' '$seed_job' --only '$seed_task')")
+    done < <(printf '%s' "$clean_json" | jq -r '.resources.jobs // {} | to_entries[] | select(.value.tags.ci_seed_task) | [.key, .value.tags.ci_seed_task] | @tsv')
+  fi
+
   if [[ -z "$resources_list" ]]; then
     continue
   fi
@@ -224,6 +234,18 @@ done
 if [[ $RESOURCES_FOUND == false ]]; then
   echo "✔ No modified or added pipelines/jobs to action."
   exit 0
+fi
+
+if (( ${#SEED_COMMANDS[@]} > 0 )); then
+  echo -e "\n▶ Seeding source data before validation..."
+  for cmd in "${SEED_COMMANDS[@]}"; do
+    if (( DEBUG_MODE == 1 )); then
+      echo "DEBUG: $cmd"
+    else
+      echo "EXEC: $cmd"
+      eval "$cmd"
+    fi
+  done
 fi
 
 echo -e "\n▶ Executing commands for modified resources..."

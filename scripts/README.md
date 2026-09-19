@@ -54,6 +54,7 @@ run_on_modified_resources.sh
   - With `--bundle <name>`: scopes processing to the named bundle only (used by CI matrix jobs)
   - Executes `databricks bundle <DATABRICKS_COMMAND>` for pipelines/jobs in changed bundles, using `DATABRICKS_BUNDLE_TARGET` to select the target
   - Skips jobs when paired with `run --validate-only` (CLI limitation)
+  - With `run --validate-only`, first runs the single task named by a job's `ci_seed_task` tag, so pipeline source paths exist
   - Skips resources matching `.bundlerunignore` patterns on real runs (dry-run validation still covers them)
   - Uses `DATABRICKS_PROFILE` if set; defaults to `DEFAULT`
 

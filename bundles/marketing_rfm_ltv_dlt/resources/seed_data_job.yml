@@ -12,6 +12,8 @@ resources:
         project: dbk_project
         vendor: Rafael_Projects
         domain: marketing
+        # Dry runs (run --validate-only) execute this task first; see scripts/run_on_modified_resources.sh
+        ci_seed_task: seed_sample_data
 
       timeout_seconds: 3600
       max_concurrent_runs: 1
