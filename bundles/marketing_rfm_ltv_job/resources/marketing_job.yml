@@ -1,0 +1,116 @@
+---
+resources:
+  jobs:
+    marketing_rfm_ltv_job:
+      name: ${bundle.target}_marketing_rfm_ltv_job
+      description: >-
+        Marketing RFM + CLV medallion pipeline implemented as a Lakeflow Job
+        (notebook-task DAG). Equivalent to the marketing_rfm_ltv_dlt pipeline.
+
+      tags:
+        env: ${bundle.target}
+        project: dbk_project
+        vendor: Rafael_Projects
+        domain: marketing
+
+      parameters:
+        - name: target_catalog
+          default: ${var.target_catalog}
+        - name: stg_schema
+          default: ${var.stg_schema}
+        - name: int_schema
+          default: ${var.int_schema}
+        - name: mart_schema
+          default: ${var.mart_schema}
+        - name: table_suffix
+          default: ${var.table_suffix}
+        - name: marketing_source_path
+          default: ${var.marketing_source_path}
+        - name: env_target
+          default: ${bundle.target}
+        - name: clv_gross_margin
+          default: ${var.clv_gross_margin}
+        - name: clv_expected_lifespan_years
+          default: ${var.clv_expected_lifespan_years}
+
+      timeout_seconds: 3600
+      max_concurrent_runs: 1
+
+      tasks:
+        # ── Seed: land deterministic sample parquet in S3 for this target ──
+        - task_key: seed_sample_data
+          environment_key: seed_env
+          spark_python_task:
+            python_file: ../../marketing_rfm_ltv_dlt/src/_setup/generate_marketing_data.py
+            parameters:
+              - --env
+              - ${bundle.target}
+              - --bucket
+              - ${var.marketing_source_path}
+
+        # ── Bronze (parallel) ─────────────────────────────
+        - task_key: stg_customers
+          depends_on:
+            - task_key: seed_sample_data
+          notebook_task:
+            notebook_path: ../src/bronze/stg_customers_nb.py
+        - task_key: stg_orders
+          depends_on:
+            - task_key: seed_sample_data
+          notebook_task:
+            notebook_path: ../src/bronze/stg_orders_nb.py
+        - task_key: stg_order_items
+          depends_on:
+            - task_key: seed_sample_data
+          notebook_task:
+            notebook_path: ../src/bronze/stg_order_items_nb.py
+        - task_key: stg_marketing_campaigns
+          depends_on:
+            - task_key: seed_sample_data
+          notebook_task:
+            notebook_path: ../src/bronze/stg_marketing_campaigns_nb.py
+
+        # ── Silver ────────────────────────────────────────
+        - task_key: slv_order_facts
+          depends_on:
+            - task_key: stg_orders
+            - task_key: stg_order_items
+          notebook_task:
+            notebook_path: ../src/silver/slv_order_facts_nb.py
+        - task_key: slv_customer_orders
+          depends_on:
+            - task_key: slv_order_facts
+            - task_key: stg_customers
+          notebook_task:
+            notebook_path: ../src/silver/slv_customer_orders_nb.py
+
+        # ── Gold ──────────────────────────────────────────
+        - task_key: gold_customer_rfm
+          depends_on:
+            - task_key: slv_customer_orders
+          notebook_task:
+            notebook_path: ../src/gold/gold_customer_rfm_nb.py
+        - task_key: gold_customer_ltv
+          depends_on:
+            - task_key: slv_customer_orders
+            - task_key: stg_marketing_campaigns
+          notebook_task:
+            notebook_path: ../src/gold/gold_customer_ltv_nb.py
+        - task_key: gold_channel_marketing_performance
+          depends_on:
+            - task_key: gold_customer_ltv
+          notebook_task:
+            notebook_path: ../src/gold/gold_channel_marketing_performance_nb.py
+
+      environments:
+        - environment_key: seed_env
+          spec:
+            environment_version: "2"
+            dependencies:
+              - faker
+              - boto3
+
+      queue:
+        enabled: true
+
+      performance_target: STANDARD

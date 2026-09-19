@@ -1,0 +1,526 @@
+# .github/workflows/ci.yml
+# Requires DATABRICKS_HOST to be set as a repository variable
+# Requires DATABRICKS_CLIENT_SECRET, DATABRICKS_CLIENT_ID to be set as repository secrets
+
+name: CI
+
+on:
+  push:
+    branches: ["main", "master", "dev"]
+  pull_request:
+
+# Prevent concurrent runs against the same Databricks workspace target.
+# cancel-in-progress: false because cancelling a live deploy/destroy leaves the workspace dirty.
+concurrency:
+  group: databricks-${{ github.event.pull_request.base.ref || github.ref_name }}
+  cancel-in-progress: false
+
+env:
+  BUNDLE_VAR_dev_schema_name: "placeholder"
+  DATABRICKS_HOST: ${{ vars.DATABRICKS_HOST }}
+  DATABRICKS_CLIENT_ID: ${{ secrets.DATABRICKS_CLIENT_ID }}
+  DATABRICKS_CLIENT_SECRET: ${{ secrets.DATABRICKS_CLIENT_SECRET }}
+  DATABRICKS_AUTH_TYPE: oauth-m2m
+  # Bundles that read tables built by other bundles (e.g. a Genie space). They deploy
+  # in a later stage, after the data bundles are deployed and their integration runs finish.
+  SERVING_BUNDLES: '["marketing_rfm_ltv_dashboard"]'
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  # ──────────────────────────────────────────────────────────────────────────────
+  # Stage 0 — Determine pipeline context and flags
+  # ──────────────────────────────────────────────────────────────────────────────
+  setup:
+    name: Bootstrap Environment
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      source_branch: ${{ steps.determine.outputs.source_branch }}
+      target_branch: ${{ steps.determine.outputs.target_branch }}
+      databricks_bundle_target: ${{ steps.determine.outputs.databricks_bundle_target }}
+      databricks_profile: ${{ steps.determine.outputs.databricks_profile }}
+      pipeline_context: ${{ steps.determine.outputs.pipeline_context }}
+      run_security_scan: ${{ steps.determine.outputs.run_security_scan }}
+      run_pre_commit: ${{ steps.determine.outputs.run_pre_commit }}
+      run_unit_tests: ${{ steps.determine.outputs.run_unit_tests }}
+      run_validate_bundles: ${{ steps.determine.outputs.run_validate_bundles }}
+      run_compare_bundle_resources: ${{ steps.determine.outputs.run_compare_bundle_resources }}
+      run_deploy_modified_bundles: ${{ steps.determine.outputs.run_deploy_modified_bundles }}
+      run_dry_run_pipelines: ${{ steps.determine.outputs.run_dry_run_pipelines }}
+      run_integration_tests: ${{ steps.determine.outputs.run_integration_tests }}
+      run_destroy_modified_bundles: ${{ steps.determine.outputs.run_destroy_modified_bundles }}
+    steps:
+      - name: Determine branches, context and profiles
+        id: determine
+        run: |
+          set -euo pipefail
+
+          PIPELINE_CONTEXT="merge_skip"
+          SOURCE_BRANCH="${{ github.ref_name }}"
+          TARGET_BRANCH="dev"
+          DATABRICKS_PROFILE="dev"
+          DATABRICKS_BUNDLE_TARGET="dev"
+
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            SOURCE_BRANCH="${{ github.head_ref }}"
+            DEST_BRANCH="${{ github.base_ref }}"
+            TARGET_BRANCH="$DEST_BRANCH"
+
+            case "$DEST_BRANCH" in
+              dev)
+                PIPELINE_CONTEXT="pr_dev"
+                DATABRICKS_PROFILE="ci"
+                DATABRICKS_BUNDLE_TARGET="ci"
+                ;;
+              main|master)
+                PIPELINE_CONTEXT="pr_main"
+                DATABRICKS_PROFILE="qa"
+                DATABRICKS_BUNDLE_TARGET="qa"
+                ;;
+              *)
+                PIPELINE_CONTEXT="pr_skip"
+                ;;
+            esac
+          else
+            case "$SOURCE_BRANCH" in
+              dev)
+                PIPELINE_CONTEXT="merge_dev"
+                TARGET_BRANCH="main"
+                DATABRICKS_PROFILE="ci"
+                DATABRICKS_BUNDLE_TARGET="ci"
+                ;;
+              main|master)
+                PIPELINE_CONTEXT="merge_main"
+                TARGET_BRANCH="${SOURCE_BRANCH}~1"
+                DATABRICKS_PROFILE="prod"
+                DATABRICKS_BUNDLE_TARGET="prod"
+                ;;
+              *)
+                PIPELINE_CONTEXT="merge_skip"
+                ;;
+            esac
+          fi
+
+          RUN_SECURITY_SCAN="false"
+          RUN_PRE_COMMIT="false"
+          RUN_UNIT_TESTS="false"
+          RUN_VALIDATE_BUNDLES="false"
+          RUN_COMPARE_BUNDLE_RESOURCES="false"
+          RUN_DEPLOY_MODIFIED_BUNDLES="false"
+          RUN_DRY_RUN_PIPELINES="false"
+          RUN_INTEGRATION_TESTS="false"
+          RUN_DESTROY_MODIFIED_BUNDLES="false"
+
+          case "$PIPELINE_CONTEXT" in
+            pr_dev|pr_main|merge_dev|merge_main)
+              RUN_SECURITY_SCAN="true"
+              RUN_PRE_COMMIT="true"
+              RUN_UNIT_TESTS="true"
+              RUN_VALIDATE_BUNDLES="true"
+              RUN_COMPARE_BUNDLE_RESOURCES="true"
+              RUN_DEPLOY_MODIFIED_BUNDLES="true"
+              ;;
+          esac
+
+          case "$PIPELINE_CONTEXT" in
+            pr_dev|pr_main)
+              RUN_DRY_RUN_PIPELINES="true"
+              ;;
+          esac
+
+          case "$PIPELINE_CONTEXT" in
+            pr_main|merge_dev|merge_main)
+              RUN_INTEGRATION_TESTS="true"
+              ;;
+          esac
+
+          case "$PIPELINE_CONTEXT" in
+            pr_dev|pr_main|merge_dev)
+              RUN_DESTROY_MODIFIED_BUNDLES="true"
+              ;;
+          esac
+
+          {
+            echo "source_branch=$SOURCE_BRANCH"
+            echo "target_branch=$TARGET_BRANCH"
+            echo "databricks_profile=$DATABRICKS_PROFILE"
+            echo "databricks_bundle_target=$DATABRICKS_BUNDLE_TARGET"
+            echo "pipeline_context=$PIPELINE_CONTEXT"
+            echo "run_security_scan=$RUN_SECURITY_SCAN"
+            echo "run_pre_commit=$RUN_PRE_COMMIT"
+            echo "run_unit_tests=$RUN_UNIT_TESTS"
+            echo "run_validate_bundles=$RUN_VALIDATE_BUNDLES"
+            echo "run_compare_bundle_resources=$RUN_COMPARE_BUNDLE_RESOURCES"
+            echo "run_deploy_modified_bundles=$RUN_DEPLOY_MODIFIED_BUNDLES"
+            echo "run_dry_run_pipelines=$RUN_DRY_RUN_PIPELINES"
+            echo "run_integration_tests=$RUN_INTEGRATION_TESTS"
+            echo "run_destroy_modified_bundles=$RUN_DESTROY_MODIFIED_BUNDLES"
+          } >> "$GITHUB_OUTPUT"
+
+          printf 'Context: %s\n' "$PIPELINE_CONTEXT"
+          printf 'Source branch: %s\n' "$SOURCE_BRANCH"
+          printf 'Target branch: %s\n' "$TARGET_BRANCH"
+          printf 'Databricks profile: %s\n' "$DATABRICKS_PROFILE"
+          printf 'Databricks bundle target: %s\n' "$DATABRICKS_BUNDLE_TARGET"
+
+  # ──────────────────────────────────────────────────────────────────────────────
+  # Stage 1a — Static checks (parallel, no Databricks creds needed)
+  # ──────────────────────────────────────────────────────────────────────────────
+  security-scan:
+    name: Security Scan
+    needs: setup
+    if: needs.setup.outputs.run_security_scan == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      - name: Install dependencies
+        run: uv sync --locked --dev
+      - name: Run bandit
+        run: |
+          mkdir -p ci-artifacts
+          uv run bandit -c pyproject.toml -r bundles/ -f json -o ci-artifacts/bandit-report.json
+      - name: Run pip-audit
+        if: always()
+        run: uv run pip-audit -f json -o ci-artifacts/pip-audit.json
+      - name: Upload security reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-reports
+          path: ci-artifacts/*.json
+          retention-days: 14
+
+  pre-commit:
+    name: Pre-commit Checks
+    needs: setup
+    if: needs.setup.outputs.run_pre_commit == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 2
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      - name: Install dependencies
+        run: uv sync --locked --dev
+      - name: Run pre-commit
+        run: uv run pre-commit run --all-files
+
+  unit-tests:
+    name: Unit Tests
+    needs: setup
+    if: needs.setup.outputs.run_unit_tests == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      - name: Install dependencies
+        run: uv sync --locked --dev
+      - name: Run pytest
+        run: uv run --with pytest-custom-exit-code pytest --disable-warnings --suppress-no-test-exit-code
+
+  # ──────────────────────────────────────────────────────────────────────────────
+  # Stage 1b — Identify modified bundles + compare resources (parallel with 1a)
+  # compare-resources runs here as a non-blocking step to save a runner.
+  # ──────────────────────────────────────────────────────────────────────────────
+  list-bundles:
+    name: List Modified Bundles
+    needs: setup
+    if: |
+      needs.setup.outputs.pipeline_context != 'pr_skip' &&
+      needs.setup.outputs.pipeline_context != 'merge_skip'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      bundles_json: ${{ steps.list.outputs.bundles_json }}
+      bundles_json_reversed: ${{ steps.list.outputs.bundles_json_reversed }}
+      has_bundles: ${{ steps.list.outputs.has_bundles }}
+      data_bundles_json: ${{ steps.list.outputs.data_bundles_json }}
+      has_data_bundles: ${{ steps.list.outputs.has_data_bundles }}
+      serving_bundles_json: ${{ steps.list.outputs.serving_bundles_json }}
+      has_serving_bundles: ${{ steps.list.outputs.has_serving_bundles }}
+    env:
+      SOURCE_BRANCH: ${{ needs.setup.outputs.source_branch }}
+      TARGET_BRANCH: ${{ needs.setup.outputs.target_branch }}
+      DATABRICKS_BUNDLE_TARGET: ${{ needs.setup.outputs.databricks_bundle_target }}
+    steps:
+      # ref: source-branch checks out the PR head (not the default refs/pull/N/merge),
+      # so diffs against target-branch reflect "what this PR changed" rather than the
+      # synthetic merge commit. Required for our diff-based bundle detection.
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 2
+          ref: ${{ needs.setup.outputs.source_branch }}
+      - uses: ./.github/actions/databricks-ci-setup
+        with:
+          target-branch: ${{ needs.setup.outputs.target_branch }}
+      - name: List modified bundles
+        id: list
+        run: |
+          bundles_json=$(bash scripts/ci/list_modified_bundles.sh "${SOURCE_BRANCH}" "${TARGET_BRANCH}")
+          count=$(echo "$bundles_json" | jq 'length')
+          echo "bundles_json=$bundles_json" >> "$GITHUB_OUTPUT"
+          data_json=$(jq -c --argjson s "$SERVING_BUNDLES" '[.[] | select(IN($s[]) | not)]' <<< "$bundles_json")
+          serving_json=$(jq -c --argjson s "$SERVING_BUNDLES" '[.[] | select(IN($s[]))]' <<< "$bundles_json")
+          {
+            echo "data_bundles_json=$data_json"
+            echo "has_data_bundles=$(jq 'length > 0' <<< "$data_json")"
+            echo "serving_bundles_json=$serving_json"
+            echo "has_serving_bundles=$(jq 'length > 0' <<< "$serving_json")"
+          } >> "$GITHUB_OUTPUT"
+          if [[ "$count" -gt 0 ]]; then
+            echo "has_bundles=true" >> "$GITHUB_OUTPUT"
+            echo "bundles_json_reversed=$(echo "$bundles_json" | jq -c 'reverse')" >> "$GITHUB_OUTPUT"
+            printf 'Modified bundles (%s): %s\n' "$count" "$bundles_json"
+          else
+            echo "has_bundles=false" >> "$GITHUB_OUTPUT"
+            echo "bundles_json_reversed=[]" >> "$GITHUB_OUTPUT"
+            echo "No modified bundles found."
+          fi
+      - name: Compare bundle resources (informational)
+        if: needs.setup.outputs.run_compare_bundle_resources == 'true' && steps.list.outputs.has_bundles == 'true'
+        continue-on-error: true
+        run: uv run ./scripts/compare_bundle_resources.sh "${SOURCE_BRANCH}" "${TARGET_BRANCH}"
+
+  # ──────────────────────────────────────────────────────────────────────────────
+  # Stage 2 — Validate each modified bundle (matrix, parallel)
+  # ──────────────────────────────────────────────────────────────────────────────
+  validate-bundles:
+    name: "Validate / ${{ matrix.bundle }}"
+    needs: [setup, security-scan, pre-commit, unit-tests, list-bundles]
+    if: |
+      !cancelled() &&
+      !contains(needs.*.result, 'failure') &&
+      needs.setup.outputs.run_validate_bundles == 'true' &&
+      needs.list-bundles.outputs.has_bundles == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      matrix:
+        bundle: ${{ fromJson(needs.list-bundles.outputs.bundles_json) }}
+    env:
+      DATABRICKS_BUNDLE_TARGET: ${{ needs.setup.outputs.databricks_bundle_target }}
+    steps:
+      # ref: source-branch checks out the PR head (not the default refs/pull/N/merge),
+      # so diffs against target-branch reflect "what this PR changed" rather than the
+      # synthetic merge commit. Required for our diff-based bundle detection.
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 2
+          ref: ${{ needs.setup.outputs.source_branch }}
+      - uses: ./.github/actions/databricks-ci-setup
+        with:
+          target-branch: ${{ needs.setup.outputs.target_branch }}
+      - name: Validate bundle
+        run: uv run scripts/validate_bundles.sh --bundle "${{ matrix.bundle }}"
+
+  # ──────────────────────────────────────────────────────────────────────────────
+  # Stage 3 — Deploy (matrix, bounded parallelism - max-parallel:4)
+  # ──────────────────────────────────────────────────────────────────────────────
+  deploy:
+    name: "Deploy / ${{ matrix.bundle }}"
+    needs: [setup, security-scan, pre-commit, unit-tests, list-bundles, validate-bundles]
+    if: |
+      !cancelled() &&
+      !contains(needs.*.result, 'failure') &&
+      needs.setup.outputs.run_deploy_modified_bundles == 'true' &&
+      needs.list-bundles.outputs.has_data_bundles == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      max-parallel: 4
+      matrix:
+        bundle: ${{ fromJson(needs.list-bundles.outputs.data_bundles_json) }}
+    env:
+      SOURCE_BRANCH: ${{ needs.setup.outputs.source_branch }}
+      TARGET_BRANCH: ${{ needs.setup.outputs.target_branch }}
+      DATABRICKS_PROFILE: ${{ needs.setup.outputs.databricks_profile }}
+      DATABRICKS_BUNDLE_TARGET: ${{ needs.setup.outputs.databricks_bundle_target }}
+    steps:
+      # ref: source-branch checks out the PR head (not the default refs/pull/N/merge),
+      # so diffs against target-branch reflect "what this PR changed" rather than the
+      # synthetic merge commit. Required for our diff-based bundle detection.
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 2
+          ref: ${{ needs.setup.outputs.source_branch }}
+      - uses: ./.github/actions/databricks-ci-setup
+        with:
+          target-branch: ${{ needs.setup.outputs.target_branch }}
+      - name: Deploy bundle
+        run: |
+          uv run scripts/manage_modified_bundles.sh deploy "${SOURCE_BRANCH}" "${TARGET_BRANCH}" \
+            --bundle "${{ matrix.bundle }}"
+
+  # ──────────────────────────────────────────────────────────────────────────────
+  # Stage 4 — Dry run (matrix, bounded parallelism, PR contexts only)
+  # ──────────────────────────────────────────────────────────────────────────────
+  dry-run:
+    name: "Dry Run / ${{ matrix.bundle }}"
+    needs: [setup, list-bundles, deploy]
+    if: |
+      !cancelled() &&
+      !contains(needs.*.result, 'failure') &&
+      needs.setup.outputs.run_dry_run_pipelines == 'true' &&
+      needs.list-bundles.outputs.has_data_bundles == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        bundle: ${{ fromJson(needs.list-bundles.outputs.data_bundles_json) }}
+    env:
+      SOURCE_BRANCH: ${{ needs.setup.outputs.source_branch }}
+      TARGET_BRANCH: ${{ needs.setup.outputs.target_branch }}
+      DATABRICKS_BUNDLE_TARGET: ${{ needs.setup.outputs.databricks_bundle_target }}
+    steps:
+      # ref: source-branch checks out the PR head (not the default refs/pull/N/merge),
+      # so diffs against target-branch reflect "what this PR changed" rather than the
+      # synthetic merge commit. Required for our diff-based bundle detection.
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 2
+          ref: ${{ needs.setup.outputs.source_branch }}
+      - uses: ./.github/actions/databricks-ci-setup
+        with:
+          target-branch: ${{ needs.setup.outputs.target_branch }}
+      - name: Dry run pipelines
+        run: |
+          uv run scripts/run_on_modified_resources.sh "${SOURCE_BRANCH}" "${TARGET_BRANCH}" \
+            "run --validate-only" --bundle "${{ matrix.bundle }}"
+
+  # ──────────────────────────────────────────────────────────────────────────────
+  # Stage 5 — Integration tests (matrix, bounded parallelism)
+  # !contains(..., 'failure') lets this run when dry-run was skipped (non-PR contexts)
+  # but blocks it when dry-run actually failed.
+  # ──────────────────────────────────────────────────────────────────────────────
+  integration-tests:
+    name: "Integration Tests / ${{ matrix.bundle }}"
+    needs: [setup, list-bundles, deploy, dry-run]
+    if: |
+      !cancelled() &&
+      !contains(needs.*.result, 'failure') &&
+      needs.setup.outputs.run_integration_tests == 'true' &&
+      needs.list-bundles.outputs.has_data_bundles == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        bundle: ${{ fromJson(needs.list-bundles.outputs.data_bundles_json) }}
+    env:
+      SOURCE_BRANCH: ${{ needs.setup.outputs.source_branch }}
+      TARGET_BRANCH: ${{ needs.setup.outputs.target_branch }}
+      DATABRICKS_BUNDLE_TARGET: ${{ needs.setup.outputs.databricks_bundle_target }}
+    steps:
+      # ref: source-branch checks out the PR head (not the default refs/pull/N/merge),
+      # so diffs against target-branch reflect "what this PR changed" rather than the
+      # synthetic merge commit. Required for our diff-based bundle detection.
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 2
+          ref: ${{ needs.setup.outputs.source_branch }}
+      - uses: ./.github/actions/databricks-ci-setup
+        with:
+          target-branch: ${{ needs.setup.outputs.target_branch }}
+      - name: Run integration tests
+        run: |
+          uv run scripts/run_on_modified_resources.sh "${SOURCE_BRANCH}" "${TARGET_BRANCH}" \
+            "run" --bundle "${{ matrix.bundle }}"
+
+  # ──────────────────────────────────────────────────────────────────────────────
+  # Stage 5b — Deploy serving bundles (dashboard + Genie), after the data bundles.
+  # Genie validates its tables at create time: when the target deploys a Genie space
+  # and its gold tables are missing, the seed job (seed -> DLT refresh) runs first.
+  # ──────────────────────────────────────────────────────────────────────────────
+  deploy-serving:
+    name: "Deploy Serving / ${{ matrix.bundle }}"
+    needs: [setup, security-scan, pre-commit, unit-tests, list-bundles, validate-bundles, deploy, dry-run, integration-tests]
+    if: |
+      !cancelled() &&
+      !contains(needs.*.result, 'failure') &&
+      needs.setup.outputs.run_deploy_modified_bundles == 'true' &&
+      needs.list-bundles.outputs.has_serving_bundles == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    strategy:
+      matrix:
+        bundle: ${{ fromJson(needs.list-bundles.outputs.serving_bundles_json) }}
+    env:
+      SOURCE_BRANCH: ${{ needs.setup.outputs.source_branch }}
+      TARGET_BRANCH: ${{ needs.setup.outputs.target_branch }}
+      DATABRICKS_PROFILE: ${{ needs.setup.outputs.databricks_profile }}
+      DATABRICKS_BUNDLE_TARGET: ${{ needs.setup.outputs.databricks_bundle_target }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 2
+          ref: ${{ needs.setup.outputs.source_branch }}
+      - uses: ./.github/actions/databricks-ci-setup
+        with:
+          target-branch: ${{ needs.setup.outputs.target_branch }}
+      - name: Ensure Genie tables exist
+        run: uv run scripts/ci/ensure_serving_tables.sh "${{ matrix.bundle }}"
+      - name: Deploy bundle
+        run: |
+          uv run scripts/manage_modified_bundles.sh deploy "${SOURCE_BRANCH}" "${TARGET_BRANCH}" \
+            --bundle "${{ matrix.bundle }}"
+
+  # ──────────────────────────────────────────────────────────────────────────────
+  # Stage 6 — Destroy (matrix, max-parallel:4)
+  # Runs even when integration-tests failed (cleanup). Skips when cancelled or
+  # when deploy was skipped (nothing to destroy). continue-on-error is on the
+  # destroy STEP — a failed cleanup turns the matrix row red (visible leak) but
+  # doesn't abort sibling rows from running their own cleanup.
+  # ──────────────────────────────────────────────────────────────────────────────
+  destroy:
+    name: "Destroy / ${{ matrix.bundle }}"
+    needs: [setup, list-bundles, deploy, dry-run, integration-tests, deploy-serving]
+    if: |
+      always() &&
+      !cancelled() &&
+      (needs.deploy.result != 'skipped' || needs.deploy-serving.result != 'skipped') &&
+      needs.setup.outputs.run_destroy_modified_bundles == 'true' &&
+      needs.list-bundles.outputs.has_bundles == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        bundle: ${{ fromJson(needs.list-bundles.outputs.bundles_json_reversed) }}
+    env:
+      SOURCE_BRANCH: ${{ needs.setup.outputs.source_branch }}
+      TARGET_BRANCH: ${{ needs.setup.outputs.target_branch }}
+      DATABRICKS_PROFILE: ${{ needs.setup.outputs.databricks_profile }}
+      DATABRICKS_BUNDLE_TARGET: ${{ needs.setup.outputs.databricks_bundle_target }}
+    steps:
+      # ref: source-branch checks out the PR head (not the default refs/pull/N/merge),
+      # so diffs against target-branch reflect "what this PR changed" rather than the
+      # synthetic merge commit. Required for our diff-based bundle detection.
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 2
+          ref: ${{ needs.setup.outputs.source_branch }}
+      - uses: ./.github/actions/databricks-ci-setup
+        with:
+          target-branch: ${{ needs.setup.outputs.target_branch }}
+      - name: Destroy bundle
+        continue-on-error: true
+        run: |
+          uv run scripts/manage_modified_bundles.sh destroy "${SOURCE_BRANCH}" "${TARGET_BRANCH}" \
+            --bundle "${{ matrix.bundle }}"

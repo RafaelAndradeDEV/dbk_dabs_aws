@@ -1,0 +1,40 @@
+{
+    "jupyter.interactiveWindow.cellMarker.codeRegex": "^# COMMAND ----------|^# Databricks notebook source|^(#\\s*%%|#\\s*\\<codecell\\>|#\\s*In\\[\\d*?\\]|#\\s*In\\[ \\])",
+    "jupyter.interactiveWindow.cellMarker.default": "# COMMAND ----------",
+    "python.testing.pytestArgs": [
+        "."
+    ],
+    "python.testing.unittestEnabled": false,
+    "python.testing.pytestEnabled": true,
+    "python.envFile": "${workspaceFolder}/.env",
+    "files.exclude": {
+        "**/*.egg-info": true,
+        "**/__pycache__": true,
+        ".pytest_cache": true
+    },
+    "[python]": {
+        "editor.defaultFormatter": "charliermarsh.ruff",
+        "editor.formatOnSave": true,
+        "editor.codeActionsOnSave": {
+            "source.fixAll": "explicit",
+            "source.organizeImports": "explicit"
+          }
+    },
+    "ruff.configuration": "./pyproject.toml",
+    "ruff.importStrategy": "useBundled",
+    "ruff.nativeServer": "auto",
+    "python.languageServer": "None",
+    "python.terminal.activateEnvironment": true,
+    "python.defaultInterpreterPath": "${workspaceFolder}/.venv",
+    "terminal.integrated.profiles.linux": {
+        "bash (with .env)": {
+            "path": "/bin/bash",
+            "args": ["-c", "set -a; [ -f ${workspaceFolder}/.env ] && source ${workspaceFolder}/.env; set +a; exec bash"]
+        },
+        "zsh (with .env)": {
+            "path": "/usr/bin/zsh",
+            "args": ["-c", "set -a; [ -f ${workspaceFolder}/.env ] && source ${workspaceFolder}/.env; set +a; exec zsh"]
+        }
+    },
+    "terminal.integrated.defaultProfile.linux": "bash (with .env)"
+}

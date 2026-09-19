@@ -1,0 +1,44 @@
+---
+# Lands the deterministic sample parquet in <marketing_source_path>/<target>/marketing/
+# so every target (dev/ci/qa/prod) has its own source data, then refreshes the pipeline.
+# CI runs only this job (the pipeline is in .bundlerunignore) so seeding always comes first.
+resources:
+  jobs:
+    marketing_rfm_ltv_seed_data:
+      name: ${bundle.target}_marketing_rfm_ltv_seed_data
+
+      tags:
+        env: ${bundle.target}
+        project: dbk_project
+        vendor: Rafael_Projects
+        domain: marketing
+        # Dry runs (run --validate-only) execute this task first; see scripts/run_on_modified_resources.sh
+        ci_seed_task: seed_sample_data
+
+      timeout_seconds: 3600
+      max_concurrent_runs: 1
+
+      tasks:
+        - task_key: seed_sample_data
+          environment_key: seed_env
+          spark_python_task:
+            python_file: ../src/_setup/generate_marketing_data.py
+            parameters:
+              - --env
+              - ${bundle.target}
+              - --bucket
+              - ${var.marketing_source_path}
+
+        - task_key: refresh_pipeline
+          depends_on:
+            - task_key: seed_sample_data
+          pipeline_task:
+            pipeline_id: ${resources.pipelines.marketing_rfm_ltv_pipeline.id}
+
+      environments:
+        - environment_key: seed_env
+          spec:
+            environment_version: "2"
+            dependencies:
+              - faker
+              - boto3

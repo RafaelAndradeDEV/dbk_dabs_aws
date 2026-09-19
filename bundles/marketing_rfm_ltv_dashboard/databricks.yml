@@ -1,0 +1,21 @@
+---
+bundle:
+  name: marketing_rfm_ltv_dashboard
+  # The `genie_spaces` resource is only supported by the DIRECT deployment
+  # engine. This also applies to `dashboards` here so the whole bundle deploys
+  # with a single engine. Requires a recent Databricks CLI.
+  engine: direct
+
+include:
+  - resources/*.yml
+  - targets.yml
+  - variables.yml
+  - ../shared/common_variables.yml
+
+sync:
+  paths:
+    - ./src
+
+permissions:
+  - group_name: ${var.manager_group_name}
+    level: CAN_MANAGE

@@ -1,0 +1,20 @@
+---
+resources:
+  dashboards:
+    marketing_rfm_ltv_dashboard:
+      display_name: ${bundle.target} - Marketing RFM & LTV
+
+      # The .lvdash.json holds the visual definition with UNQUALIFIED table
+      # names; dataset_catalog/dataset_schema resolve them per target (bundle
+      # variables are NOT interpolated inside the .lvdash.json file itself).
+      file_path: ../src/marketing_rfm_ltv.lvdash.json
+      warehouse_id: ${var.dashboard_warehouse_id}
+      dataset_catalog: ${var.target_catalog}
+      dataset_schema: ${var.mart_schema}
+
+      # false => each viewer's own credentials run the queries (UC-governed).
+      embed_credentials: false
+
+      permissions:
+        - level: CAN_READ
+          group_name: ${var.viewer_group_name}

@@ -1,0 +1,18 @@
+---
+bundle:
+  name: marketing_rfm_ltv_dlt
+
+include:
+  - resources/*.yml
+  - targets.yml
+  - variables.yml
+  - ../shared/common_variables.yml
+  - ../shared/transformation_variables.yml
+
+sync:
+  paths:
+    - ./src
+
+permissions:
+  - group_name: ${var.manager_group_name}
+    level: CAN_MANAGE

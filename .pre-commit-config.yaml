@@ -1,0 +1,85 @@
+minimum_pre_commit_version: "4.3.0"
+default_language_version:
+  python: python3.12
+
+repos:
+- repo: https://github.com/pre-commit/pre-commit-hooks
+  rev: v6.0.0
+  hooks:
+    - id: end-of-file-fixer
+    - id: trailing-whitespace
+    - id: check-yaml
+    - id: check-json
+    - id: check-toml
+    - id: check-merge-conflict
+    - id: detect-private-key
+    - id: mixed-line-ending
+    - id: check-case-conflict
+    - id: check-added-large-files
+      args: ["--maxkb=1000"]
+    - id: debug-statements
+
+- repo: https://github.com/astral-sh/ruff-pre-commit
+  rev: v0.12.10
+  hooks:
+    # Run the linter first (with autofix)
+    - id: ruff
+      args: ["--fix", "--exit-non-zero-on-fix", "--config", "./pyproject.toml"]
+    # Then run the formatter
+    - id: ruff-format
+      args: ["--config", "./pyproject.toml"]
+
+- repo: https://github.com/codespell-project/codespell
+  rev: v2.3.0
+  hooks:
+    - id: codespell
+      args: ["-L", "crate,ot,requency", "-w"]
+
+- repo: https://github.com/DetachHead/basedpyright-pre-commit-mirror
+  rev: v1.13.0
+  hooks:
+    - id: basedpyright
+
+- repo: https://github.com/sqlfluff/sqlfluff
+  rev: 4.3.0
+  hooks:
+    -   id: sqlfluff-fix
+        name: sqlfluff-fix on SQL files
+        args: ["--config", ".sqlfluff"]
+        files: '\.(sql|sql\.j2|dml|ddl)$'
+    -   id: sqlfluff-lint
+        name: sqlfluff-lint on SQL files
+        args: ["--config", ".sqlfluff"]
+        files: '\.(sql|sql\.j2|dml|ddl)$'
+
+# - repo: local
+#   hooks:
+#     - id: sqlfluff-magic-lint
+#       name: sqlfluff lint on MAGIC SQL blocks in Python
+#       language: python
+#       pass_filenames: true
+#       files: '\.py$'
+#       types_or: [python]
+#       entry: bash scripts/lint_magic_sql.sh
+#       additional_dependencies:
+#         - sqlfluff==4.3.0
+
+- repo: https://github.com/pycqa/pylint
+  rev: v3.2.6
+  hooks:
+    - id: pylint
+      name: pylint check with databricks plugin
+      args: ["bundles/"]
+      additional_dependencies:
+        - databricks-labs-pylint==0.5.0
+
+exclude: |
+  (?x)(
+    ^\.venv/|
+    ^ci-artifacts/|
+    ^htmlcov/|
+    ^dist/|
+    ^.vscode.example/|
+    ^build/|
+    ^uv.lock
+  )

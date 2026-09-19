@@ -1,0 +1,147 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "databricks-aws-dabs"
+version = "0.0.1"
+authors = [
+    {name = "Rafael Andrade"},
+]
+requires-python = "== 3.12.*"
+
+dependencies = [
+    "databricks-connect==16.4.3", # Must match cluster runtime version (<=)
+    "databricks-dlt==0.3.0",
+    "ruamel-yaml>=0.18.16",
+    "ruff>=0.15.5",
+    "sqlglot>=28.5.0",
+]
+
+[tool.setuptools]
+# Not publishing a package; no packages to build. Kept to satisfy build-backend.
+packages = []
+
+[dependency-groups]
+dev = [
+    "pytest",
+    "ruff>=0.15.6",
+    "pre-commit>=4.3.0",
+    "codespell>=2.4.1",
+    "sqlfluff>=4.2.0",
+    "databricks-labs-pylint==0.5.0",
+    "bandit",
+    "pip-audit",
+    "cloudpickle",
+    "databricks-sql-connector",
+]
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+addopts = "-ra -q --doctest-modules"
+pythonpath = [
+    ".",
+    "bundles/shared/src",
+]
+python_files =["test_*.py", "*_test.py"]
+norecursedirs = [
+    ".venv",
+    ".ruff_cache",
+    "bundles",
+    ".uv-cache"
+]
+testpaths = [
+    "tests",
+]
+filterwarnings = [
+        "ignore::DeprecationWarning",
+        "ignore:.*This is a stub that only contains the interfaces to Delta Live Tables.*:UserWarning"
+]
+
+doctest_optionflags = [
+    "NORMALIZE_WHITESPACE",
+    "IGNORE_EXCEPTION_DETAIL",
+    "ELLIPSIS",
+]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 120
+indent-width = 4
+extend-include = ["*.ipynb"]
+builtins = ["spark", "dbutils"]
+exclude = [
+        "typings/__builtins__.pyi",
+        ".venv",
+    ]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "D", "UP", "B", "A", "C4", "RUF", "PT", "Q", "T20", "RET", "SIM", "ARG"]
+ignore = ["D415", "D102", "D103", "D107", "T201"]
+pydocstyle.convention = "google"
+fixable = ["E", "F", "I", "Q", "D"]
+dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+isort.known-local-folder = ["bundles"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+docstring-code-format = true
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["D", "PT"]
+"__init__.py" = ["D104", "F401"]
+# Databricks notebooks import after `# COMMAND ----------` cell separators
+"*_nb.py" = ["E402"]
+
+[tool.basedpyright]
+typeCheckingMode = "off"
+stubPath = "./typings"
+exclude = ["**/.venv/**"]
+include = ["**/*.py", "**/*.pyi", "**/*.ipynb"]
+venvPath = "."
+venv = ".venv"
+extraPaths = ["bundles/shared/src", "typings"]
+
+[tool.pylint.main]
+load-plugins = [
+    "databricks.labs.pylint.all"
+]
+init-hook = "import sys; sys.path.append('bundles')"
+ignore = [".venv"]
+
+[tool.pylint.messages_control]
+disable = [
+    "all",
+    "no-spark-argument-in-function",
+    "spark-outside-function",
+]
+enable = [
+    # Databricks plugin specific checks - using the names from the documentation
+    "missing-data-security-mode",
+    "unsupported-runtime",
+    "dbutils-fs-cp",
+    "dbutils-fs-head",
+    "dbutils-fs-ls",
+    "dbutils-fs-mount",
+    "dbutils-credentials",
+    "dbutils-notebook-run",
+    "pat-token-leaked",
+    "legacy-cli",
+    "incompatible-with-uc",
+    "notebooks-too-many-cells",
+    "notebooks-percent-run",
+    "use-display-instead-of-show",
+    "rewrite-as-for-loop",
+    "explicit-dependency-required",
+    "obscure-mock",
+    "mock-no-assign",
+    "mock-no-usage",
+    # "dead-code"
+]
+
+[tool.bandit]
+exclude_dirs = ["tests", "ci-artifacts"]
+targets = ["bundles"]
+skips = ["B608", "B405", "B314"]
