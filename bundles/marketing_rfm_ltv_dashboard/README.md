@@ -49,6 +49,12 @@ After deploy, open the dashboard and Genie space from the workspace
 - **Genie space**: defined *inline* via `serialized_space` in
   `resources/genie_space.yml` so `${var.target_catalog}.${var.mart_schema}`
   interpolate the fully-qualified table identifiers per target.
+- **Genie space targets**: only `dev` and `prod`. Genie checks that its tables
+  exist when the space is created; in `ci`/`qa` the gold tables are built after
+  deploy and dropped on destroy, so those targets deploy the dashboard only.
+  CI deploys this bundle last (`deploy-serving` stage); if the `prod` gold
+  tables are missing, it first runs the seed job (seed → pipeline) and waits
+  for them (`scripts/ci/ensure_serving_tables.sh`).
 
 Target → catalog / mart schema mapping mirrors `marketing_rfm_ltv_dlt`:
 

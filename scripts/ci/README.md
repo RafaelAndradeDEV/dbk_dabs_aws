@@ -28,6 +28,14 @@ repeatable logic for deciding whether a step runs for the current
   - `ensure_target_branch_fetched`: derives the fetch branch from
     `TARGET_BRANCH` (ignoring any `~N` suffix) and fetches it from origin.
 
+- `ensure_serving_tables.sh <bundle>`
+  Used by the GitHub `deploy-serving` stage before deploying a serving bundle
+  (listed in `SERVING_BUNDLES` in `ci.yml`). If the bundle deploys a Genie space
+  for `DATABRICKS_BUNDLE_TARGET` and its tables are missing, it runs the
+  `marketing_rfm_ltv_seed_data` job (seed → DLT refresh), then polls every
+  `POLL_INTERVAL_SECONDS` (30) until the tables exist or `WAIT_TIMEOUT_SECONDS`
+  (900) elapses.
+
 ## Step wrappers
 
 - `security_scan_step.sh`

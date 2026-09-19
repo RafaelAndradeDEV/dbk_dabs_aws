@@ -21,6 +21,9 @@ env:
   DATABRICKS_CLIENT_ID: ${{ secrets.DATABRICKS_CLIENT_ID }}
   DATABRICKS_CLIENT_SECRET: ${{ secrets.DATABRICKS_CLIENT_SECRET }}
   DATABRICKS_AUTH_TYPE: oauth-m2m
+  # Bundles that read tables built by other bundles (e.g. a Genie space). They deploy
+  # in a later stage, after the data bundles are deployed and their integration runs finish.
+  SERVING_BUNDLES: '["marketing_rfm_ltv_dashboard"]'
 
 defaults:
   run:
@@ -244,6 +247,10 @@ jobs:
       bundles_json: ${{ steps.list.outputs.bundles_json }}
       bundles_json_reversed: ${{ steps.list.outputs.bundles_json_reversed }}
       has_bundles: ${{ steps.list.outputs.has_bundles }}
+      data_bundles_json: ${{ steps.list.outputs.data_bundles_json }}
+      has_data_bundles: ${{ steps.list.outputs.has_data_bundles }}
+      serving_bundles_json: ${{ steps.list.outputs.serving_bundles_json }}
+      has_serving_bundles: ${{ steps.list.outputs.has_serving_bundles }}
     env:
       SOURCE_BRANCH: ${{ needs.setup.outputs.source_branch }}
       TARGET_BRANCH: ${{ needs.setup.outputs.target_branch }}
@@ -265,6 +272,14 @@ jobs:
           bundles_json=$(bash scripts/ci/list_modified_bundles.sh "${SOURCE_BRANCH}" "${TARGET_BRANCH}")
           count=$(echo "$bundles_json" | jq 'length')
           echo "bundles_json=$bundles_json" >> "$GITHUB_OUTPUT"
+          data_json=$(jq -c --argjson s "$SERVING_BUNDLES" '[.[] | select(IN($s[]) | not)]' <<< "$bundles_json")
+          serving_json=$(jq -c --argjson s "$SERVING_BUNDLES" '[.[] | select(IN($s[]))]' <<< "$bundles_json")
+          {
+            echo "data_bundles_json=$data_json"
+            echo "has_data_bundles=$(jq 'length > 0' <<< "$data_json")"
+            echo "serving_bundles_json=$serving_json"
+            echo "has_serving_bundles=$(jq 'length > 0' <<< "$serving_json")"
+          } >> "$GITHUB_OUTPUT"
           if [[ "$count" -gt 0 ]]; then
             echo "has_bundles=true" >> "$GITHUB_OUTPUT"
             echo "bundles_json_reversed=$(echo "$bundles_json" | jq -c 'reverse')" >> "$GITHUB_OUTPUT"
@@ -321,13 +336,13 @@ jobs:
       !cancelled() &&
       !contains(needs.*.result, 'failure') &&
       needs.setup.outputs.run_deploy_modified_bundles == 'true' &&
-      needs.list-bundles.outputs.has_bundles == 'true'
+      needs.list-bundles.outputs.has_data_bundles == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
       max-parallel: 4
       matrix:
-        bundle: ${{ fromJson(needs.list-bundles.outputs.bundles_json) }}
+        bundle: ${{ fromJson(needs.list-bundles.outputs.data_bundles_json) }}
     env:
       SOURCE_BRANCH: ${{ needs.setup.outputs.source_branch }}
       TARGET_BRANCH: ${{ needs.setup.outputs.target_branch }}
@@ -359,14 +374,14 @@ jobs:
       !cancelled() &&
       !contains(needs.*.result, 'failure') &&
       needs.setup.outputs.run_dry_run_pipelines == 'true' &&
-      needs.list-bundles.outputs.has_bundles == 'true'
+      needs.list-bundles.outputs.has_data_bundles == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 60
     strategy:
       fail-fast: false
       max-parallel: 4
       matrix:
-        bundle: ${{ fromJson(needs.list-bundles.outputs.bundles_json) }}
+        bundle: ${{ fromJson(needs.list-bundles.outputs.data_bundles_json) }}
     env:
       SOURCE_BRANCH: ${{ needs.setup.outputs.source_branch }}
       TARGET_BRANCH: ${{ needs.setup.outputs.target_branch }}
@@ -399,14 +414,14 @@ jobs:
       !cancelled() &&
       !contains(needs.*.result, 'failure') &&
       needs.setup.outputs.run_integration_tests == 'true' &&
-      needs.list-bundles.outputs.has_bundles == 'true'
+      needs.list-bundles.outputs.has_data_bundles == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 120
     strategy:
       fail-fast: false
       max-parallel: 4
       matrix:
-        bundle: ${{ fromJson(needs.list-bundles.outputs.bundles_json) }}
+        bundle: ${{ fromJson(needs.list-bundles.outputs.data_bundles_json) }}
     env:
       SOURCE_BRANCH: ${{ needs.setup.outputs.source_branch }}
       TARGET_BRANCH: ${{ needs.setup.outputs.target_branch }}
@@ -428,6 +443,44 @@ jobs:
             "run" --bundle "${{ matrix.bundle }}"
 
   # ──────────────────────────────────────────────────────────────────────────────
+  # Stage 5b — Deploy serving bundles (dashboard + Genie), after the data bundles.
+  # Genie validates its tables at create time: when the target deploys a Genie space
+  # and its gold tables are missing, the seed job (seed -> DLT refresh) runs first.
+  # ──────────────────────────────────────────────────────────────────────────────
+  deploy-serving:
+    name: "Deploy Serving / ${{ matrix.bundle }}"
+    needs: [setup, security-scan, pre-commit, unit-tests, list-bundles, validate-bundles, deploy, dry-run, integration-tests]
+    if: |
+      !cancelled() &&
+      !contains(needs.*.result, 'failure') &&
+      needs.setup.outputs.run_deploy_modified_bundles == 'true' &&
+      needs.list-bundles.outputs.has_serving_bundles == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    strategy:
+      matrix:
+        bundle: ${{ fromJson(needs.list-bundles.outputs.serving_bundles_json) }}
+    env:
+      SOURCE_BRANCH: ${{ needs.setup.outputs.source_branch }}
+      TARGET_BRANCH: ${{ needs.setup.outputs.target_branch }}
+      DATABRICKS_PROFILE: ${{ needs.setup.outputs.databricks_profile }}
+      DATABRICKS_BUNDLE_TARGET: ${{ needs.setup.outputs.databricks_bundle_target }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 2
+          ref: ${{ needs.setup.outputs.source_branch }}
+      - uses: ./.github/actions/databricks-ci-setup
+        with:
+          target-branch: ${{ needs.setup.outputs.target_branch }}
+      - name: Ensure Genie tables exist
+        run: uv run scripts/ci/ensure_serving_tables.sh "${{ matrix.bundle }}"
+      - name: Deploy bundle
+        run: |
+          uv run scripts/manage_modified_bundles.sh deploy "${SOURCE_BRANCH}" "${TARGET_BRANCH}" \
+            --bundle "${{ matrix.bundle }}"
+
+  # ──────────────────────────────────────────────────────────────────────────────
   # Stage 6 — Destroy (matrix, max-parallel:4)
   # Runs even when integration-tests failed (cleanup). Skips when cancelled or
   # when deploy was skipped (nothing to destroy). continue-on-error is on the
@@ -436,11 +489,11 @@ jobs:
   # ──────────────────────────────────────────────────────────────────────────────
   destroy:
     name: "Destroy / ${{ matrix.bundle }}"
-    needs: [setup, list-bundles, deploy, dry-run, integration-tests]
+    needs: [setup, list-bundles, deploy, dry-run, integration-tests, deploy-serving]
     if: |
       always() &&
       !cancelled() &&
-      needs.deploy.result != 'skipped' &&
+      (needs.deploy.result != 'skipped' || needs.deploy-serving.result != 'skipped') &&
       needs.setup.outputs.run_destroy_modified_bundles == 'true' &&
       needs.list-bundles.outputs.has_bundles == 'true'
     runs-on: ubuntu-latest

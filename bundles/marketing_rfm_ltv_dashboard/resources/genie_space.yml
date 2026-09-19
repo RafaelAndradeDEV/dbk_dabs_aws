@@ -8,104 +8,114 @@
 #
 # NOTE: `genie_spaces` requires the DIRECT deployment engine (set in
 # databricks.yml).
-resources:
-  genie_spaces:
-    marketing_rfm_ltv_genie:
-      title: ${bundle.target} - Marketing RFM & LTV Genie
-      description: >-
-        Natural-language analytics over the marketing marts: channel ROI / CAC /
-        LTV:CAC and customer RFM segmentation.
-      warehouse_id: ${var.dashboard_warehouse_id}
-      permissions:
-        - level: CAN_RUN
-          group_name: ${var.viewer_group_name}
-      serialized_space: |
-        {
-          "version": 2,
-          "config": {
-            "sample_questions": [
-              { "id": "5a1e0000000000000000000000000001", "question": ["Which channel has the best marketing ROI?"] },
-              { "id": "5a1e0000000000000000000000000002", "question": ["What is our blended customer acquisition cost (CAC)?"] },
-              { "id": "5a1e0000000000000000000000000003", "question": ["Which channels have an LTV:CAC ratio above 3?"] },
-              { "id": "5a1e0000000000000000000000000004", "question": ["How many customers are Champions versus At Risk or Lost?"] },
-              { "id": "5a1e0000000000000000000000000005", "question": ["Which acquisition channel produces the most Champions?"] },
-              { "id": "5a1e0000000000000000000000000006", "question": ["What is the total revenue by RFM segment?"] }
-            ]
-          },
-          "data_sources": {
-            "tables": [
-              {
-                "identifier": "${var.target_catalog}.${var.mart_schema}.gold_channel_marketing_performance",
-                "column_configs": [
-                  { "column_name": "acquisition_channel" },
-                  { "column_name": "avg_predictive_clv" },
-                  { "column_name": "cac" },
-                  { "column_name": "click_through_rate" },
-                  { "column_name": "clicks" },
-                  { "column_name": "customers" },
-                  { "column_name": "impressions" },
-                  { "column_name": "ltv_to_cac_ratio" },
-                  { "column_name": "marketing_roi" },
-                  { "column_name": "total_campaign_cost" },
-                  { "column_name": "total_orders" },
-                  { "column_name": "total_revenue" }
+#
+# Deployed only to dev and prod: Genie validates that its tables exist at create time,
+# and in ci/qa the gold tables are only built after deploy (and dropped on destroy).
+targets:
+  dev:
+    resources:
+      genie_spaces:
+        marketing_rfm_ltv_genie: &genie_space
+          title: ${bundle.target} - Marketing RFM & LTV Genie
+          description: >-
+            Natural-language analytics over the marketing marts: channel ROI / CAC /
+            LTV:CAC and customer RFM segmentation.
+          warehouse_id: ${var.dashboard_warehouse_id}
+          permissions:
+            - level: CAN_RUN
+              group_name: ${var.viewer_group_name}
+          serialized_space: |
+            {
+              "version": 2,
+              "config": {
+                "sample_questions": [
+                  { "id": "5a1e0000000000000000000000000001", "question": ["Which channel has the best marketing ROI?"] },
+                  { "id": "5a1e0000000000000000000000000002", "question": ["What is our blended customer acquisition cost (CAC)?"] },
+                  { "id": "5a1e0000000000000000000000000003", "question": ["Which channels have an LTV:CAC ratio above 3?"] },
+                  { "id": "5a1e0000000000000000000000000004", "question": ["How many customers are Champions versus At Risk or Lost?"] },
+                  { "id": "5a1e0000000000000000000000000005", "question": ["Which acquisition channel produces the most Champions?"] },
+                  { "id": "5a1e0000000000000000000000000006", "question": ["What is the total revenue by RFM segment?"] }
                 ]
               },
-              {
-                "identifier": "${var.target_catalog}.${var.mart_schema}.gold_customer_rfm",
-                "column_configs": [
-                  { "column_name": "acquisition_channel" },
-                  { "column_name": "customer_id" },
-                  { "column_name": "f_score" },
-                  { "column_name": "frequency" },
-                  { "column_name": "m_score" },
-                  { "column_name": "monetary" },
-                  { "column_name": "r_score" },
-                  { "column_name": "recency_days" },
-                  { "column_name": "rfm_cell" },
-                  { "column_name": "rfm_segment" }
-                ]
-              }
-            ]
-          },
-          "instructions": {
-            "text_instructions": [
-              {
-                "id": "1a570000000000000000000000000001",
-                "content": [
-                  "This Genie space answers marketing questions for the marketing RFM & LTV case.\n",
-                  "Two gold marts are available:\n",
-                  "  - gold_channel_marketing_performance: one row per acquisition_channel. Metrics: total_revenue (lifetime net revenue), cac (customer acquisition cost = spend / customers), marketing_roi = (revenue - cost) / cost, ltv_to_cac_ratio (avg predictive CLV / CAC), click_through_rate = clicks / impressions.\n",
-                  "  - gold_customer_rfm: one row per customer with r_score/f_score/m_score (1-5, 5 = best) and a derived rfm_segment label (e.g. Champions, Loyal Customers, At Risk, Lost).\n",
-                  "Money columns are in USD. An LTV:CAC ratio above 3 is considered healthy unit economics.\n",
-                  "For revenue use SUM(total_revenue) for channels or SUM(monetary) for RFM. For customer counts use COUNT(customer_id) (rfm) or SUM(customers) (channel)."
-                ]
-              }
-            ],
-            "example_question_sqls": [
-              {
-                "id": "e9510000000000000000000000000001",
-                "question": ["Which channel has the best marketing ROI?"],
-                "sql": [
-                  "SELECT\n",
-                  "  acquisition_channel,\n",
-                  "  marketing_roi\n",
-                  "FROM ${var.target_catalog}.${var.mart_schema}.gold_channel_marketing_performance\n",
-                  "ORDER BY marketing_roi DESC"
+              "data_sources": {
+                "tables": [
+                  {
+                    "identifier": "${var.target_catalog}.${var.mart_schema}.gold_channel_marketing_performance",
+                    "column_configs": [
+                      { "column_name": "acquisition_channel" },
+                      { "column_name": "avg_predictive_clv" },
+                      { "column_name": "cac" },
+                      { "column_name": "click_through_rate" },
+                      { "column_name": "clicks" },
+                      { "column_name": "customers" },
+                      { "column_name": "impressions" },
+                      { "column_name": "ltv_to_cac_ratio" },
+                      { "column_name": "marketing_roi" },
+                      { "column_name": "total_campaign_cost" },
+                      { "column_name": "total_orders" },
+                      { "column_name": "total_revenue" }
+                    ]
+                  },
+                  {
+                    "identifier": "${var.target_catalog}.${var.mart_schema}.gold_customer_rfm",
+                    "column_configs": [
+                      { "column_name": "acquisition_channel" },
+                      { "column_name": "customer_id" },
+                      { "column_name": "f_score" },
+                      { "column_name": "frequency" },
+                      { "column_name": "m_score" },
+                      { "column_name": "monetary" },
+                      { "column_name": "r_score" },
+                      { "column_name": "recency_days" },
+                      { "column_name": "rfm_cell" },
+                      { "column_name": "rfm_segment" }
+                    ]
+                  }
                 ]
               },
-              {
-                "id": "e9510000000000000000000000000002",
-                "question": ["How many customers are in each RFM segment?"],
-                "sql": [
-                  "SELECT\n",
-                  "  rfm_segment,\n",
-                  "  COUNT(customer_id) AS customers\n",
-                  "FROM ${var.target_catalog}.${var.mart_schema}.gold_customer_rfm\n",
-                  "GROUP BY rfm_segment\n",
-                  "ORDER BY customers DESC"
+              "instructions": {
+                "text_instructions": [
+                  {
+                    "id": "1a570000000000000000000000000001",
+                    "content": [
+                      "This Genie space answers marketing questions for the marketing RFM & LTV case.\n",
+                      "Two gold marts are available:\n",
+                      "  - gold_channel_marketing_performance: one row per acquisition_channel. Metrics: total_revenue (lifetime net revenue), cac (customer acquisition cost = spend / customers), marketing_roi = (revenue - cost) / cost, ltv_to_cac_ratio (avg predictive CLV / CAC), click_through_rate = clicks / impressions.\n",
+                      "  - gold_customer_rfm: one row per customer with r_score/f_score/m_score (1-5, 5 = best) and a derived rfm_segment label (e.g. Champions, Loyal Customers, At Risk, Lost).\n",
+                      "Money columns are in USD. An LTV:CAC ratio above 3 is considered healthy unit economics.\n",
+                      "For revenue use SUM(total_revenue) for channels or SUM(monetary) for RFM. For customer counts use COUNT(customer_id) (rfm) or SUM(customers) (channel)."
+                    ]
+                  }
+                ],
+                "example_question_sqls": [
+                  {
+                    "id": "e9510000000000000000000000000001",
+                    "question": ["Which channel has the best marketing ROI?"],
+                    "sql": [
+                      "SELECT\n",
+                      "  acquisition_channel,\n",
+                      "  marketing_roi\n",
+                      "FROM ${var.target_catalog}.${var.mart_schema}.gold_channel_marketing_performance\n",
+                      "ORDER BY marketing_roi DESC"
+                    ]
+                  },
+                  {
+                    "id": "e9510000000000000000000000000002",
+                    "question": ["How many customers are in each RFM segment?"],
+                    "sql": [
+                      "SELECT\n",
+                      "  rfm_segment,\n",
+                      "  COUNT(customer_id) AS customers\n",
+                      "FROM ${var.target_catalog}.${var.mart_schema}.gold_customer_rfm\n",
+                      "GROUP BY rfm_segment\n",
+                      "ORDER BY customers DESC"
+                    ]
+                  }
                 ]
               }
-            ]
-          }
-        }
+            }
+
+  prod:
+    resources:
+      genie_spaces:
+        marketing_rfm_ltv_genie: *genie_space
