@@ -155,11 +155,12 @@ def write_local(frames, env, local_path):
 
 def write_s3(frames, env, bucket):
     """Write parquet files to S3 using boto3 + the `aws_scope_s3` secret scope."""
-    import boto3  # pylint: disable=W8912
+    import boto3  # pylint: disable=incompatible-with-uc
     from databricks.sdk.runtime import dbutils
 
     access_key = dbutils.secrets.get("aws_scope_s3", "ACCESS_KEY_ID")
     secret_key = dbutils.secrets.get("aws_scope_s3", "SECRET_ACCESS_KEY")
+    # pylint: disable-next=incompatible-with-uc
     s3 = boto3.client("s3", aws_access_key_id=access_key, aws_secret_access_key=secret_key)
 
     for table, df in frames.items():

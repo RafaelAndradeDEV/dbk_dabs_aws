@@ -33,7 +33,7 @@ repos:
   rev: v2.3.0
   hooks:
     - id: codespell
-      args: ["-L", "crate,ot", "-w"]
+      args: ["-L", "crate,ot,requency", "-w"]
 
 - repo: https://github.com/DetachHead/basedpyright-pre-commit-mirror
   rev: v1.13.0

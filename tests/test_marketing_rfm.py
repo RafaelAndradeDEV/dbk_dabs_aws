@@ -71,7 +71,7 @@ def _load_job_assign_rfm_segment():
         tree = ast.parse(fh.read())
     func = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == "assign_rfm_segment")
     namespace = {}
-    exec(compile(ast.Module(body=[func], type_ignores=[]), path, "exec"), namespace)  # noqa: S102
+    exec(compile(ast.Module(body=[func], type_ignores=[]), path, "exec"), namespace)
     return namespace["assign_rfm_segment"]
 
 
